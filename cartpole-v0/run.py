@@ -1,4 +1,6 @@
 import sys
+from collections import deque
+
 import mxnet as mx
 import numpy as np
 import cv2, random
@@ -52,30 +54,50 @@ class ConcurrentIter(mx.io.DataIter):
         pass
 
 
-def get_location_net():
-    data = mx.symbol.Variable('data')
-    label = mx.symbol.Variable('softmax_output')
-
-    fc1 = mx.symbol.FullyConnected(data = data, num_hidden = 128)
-    fc2 = mx.symbol.FullyConnected(data = fc1, num_hidden = 64)
-    fc3 = mx.symbol.FullyConnected(data = fc2, num_hidden = 2)
-
-    return mx.symbol.SoftmaxOutput(data = fc3, label = label, name = "softmax")
 
 import gym
 
+INITIAL_EPSILON = 0.5
 MAX_EPISODES = 1000
 STEPS_PER_EPISODE = 100
+BATCH_SIZE = 32
+REPLAY_SIZE = 10000
 
 class DQN_agent():
-    def __init__(self):
+    def __init__(self, env):
+        self.epsilon = INITIAL_EPSILON
+        self.state_dim = env.observation_space.shape[0]
+        self.action_dim = env.action_space.n
+
+        self.network = self.generate_Q_network()
+        self.replay_buffer = deque()
         pass
 
-    def create_network(self):
-        pass
+    def generate_Q_network(self):
+        data = mx.symbol.Variable('data')
+        label = mx.symbol.Variable('softmax_output')
 
-    def learn(self, state, action, reward, next_state):
-        pass
+        fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
+        relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
+        fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=1)
+
+        return mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="regression")
+
+    def train_Q_network(self):
+        minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
+        state_batch = [data[0] for data in minibatch]
+        action_batch = [data[0] for data in minibatch]
+
+    def learn(self, state, action, reward, next_state, done):
+        one_hot_action = np.zeros(self.action_dim)
+        one_hot_action[action] = 1
+        self.replay_buffer.append((state, one_hot_action, reward, next_state, done))
+        if len(self.replay_buffer) > REPLAY_SIZE:
+            self.replay_buffer.popleft()
+
+        if len(self.replay_buffer) > BATCH_SIZE:
+            self.train_Q_network()
+
 
     def react(self, state):
         return 0
@@ -89,7 +111,7 @@ if __name__ == '__main__':
             # env.render()
             action = agent.react(state)
             next_state, reward, done, info = env.step(action)
-            action = agent.learn(state, action, reward, next_state)
+            action = agent.learn(state, action, reward, next_state, done)
             state = next_state
             if done:
                 print("Episode finished after {} timesteps".format(t+1))
