@@ -62,6 +62,7 @@ MAX_EPISODES = 1000
 STEPS_PER_EPISODE = 100
 BATCH_SIZE = 32
 REPLAY_SIZE = 10000
+GAMMA = 0.9
 
 class DQN_agent():
     def __init__(self, env):
@@ -81,12 +82,40 @@ class DQN_agent():
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
         fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=1)
 
-        return mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="regression")
+        network = mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="regression")
+        devs = [mx.gpu(0)]
+        model = mx.model.FeedForward(
+            symbol=network,
+            ctx=devs,
+            optimizer=mx.optimizer.Adam(0.0001),
+            initializer=mx.init.Xavier(factor_type="in", magnitude=2.34),
+        )
+        return model
 
     def train_Q_network(self):
         minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
-        state_batch = [data[0] for data in minibatch]
-        action_batch = [data[0] for data in minibatch]
+        state_batch = np.array([data[0] for data in minibatch])
+        action_batch = np.array([data[1] for data in minibatch])
+        reward_batch = [data[2] for data in minibatch]
+        next_state_batch = [data[3] for data in minibatch]
+
+        y_batch = []
+        Q_value_batch = self.network.predict(next_state_batch)
+        for i in range(0, BATCH_SIZE):
+            if minibatch[i][4]:
+                y_batch.append(reward_batch[i])
+            else:
+                y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
+        y_batch = np.array(y_batch)
+
+        self.network.fit(X=state_batch, y=action_batch, eval_data=y_batch)
+
+    def egreedy_action(self, state):
+        Q_value = self.network.predict(mx.nd.array(state))
+        if random.random() <= self.epsilon:
+            return random.randint(0, self.action_dim - 1)
+        else:
+            return np.argmax(Q_value)
 
     def learn(self, state, action, reward, next_state, done):
         one_hot_action = np.zeros(self.action_dim)
