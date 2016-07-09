@@ -1,16 +1,15 @@
-import sys
+#!/usr/bin/python
+# import sys
 from collections import deque
 
+import os
 import mxnet as mx
 import numpy as np
-import cv2, random
-import json
+import random
+import platform
 
-ORIGIN_HEIGHT = 1944
-ORIGIN_WIDTH = 2592
-
-IMAGE_HEIGHT = 75
-IMAGE_WIDTH = 100
+def is_macosx():
+    return platform.system() == "Darwin"
 
 class Batch(object):
     def __init__(self, data_names, data, label_names, label):
@@ -53,8 +52,6 @@ class ConcurrentIter(mx.io.DataIter):
     def reset(self):
         pass
 
-
-
 import gym
 
 INITIAL_EPSILON = 0.5
@@ -83,7 +80,11 @@ class DQN_agent():
         fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=1)
 
         network = mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="regression")
-        devs = [mx.gpu(0)]
+
+        if is_macosx():
+            devs = [mx.cpu()]
+        else:
+            devs = [mx.gpu(0)]
         model = mx.model.FeedForward(
             symbol=network,
             ctx=devs,
@@ -94,20 +95,25 @@ class DQN_agent():
 
     def train_Q_network(self):
         minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
-        state_batch = np.array([data[0] for data in minibatch])
-        action_batch = np.array([data[1] for data in minibatch])
+
+        state_batch = np.asarray([data[0] for data in minibatch])
+        action_batch = np.asarray([data[1] for data in minibatch])
         reward_batch = [data[2] for data in minibatch]
-        next_state_batch = [data[3] for data in minibatch]
+        next_state_batch = np.asarray([data[3] for data in minibatch])
 
         y_batch = []
+
+        print("state batch:")
+        print(state_batch)
+
         Q_value_batch = self.network.predict(next_state_batch)
         for i in range(0, BATCH_SIZE):
             if minibatch[i][4]:
                 y_batch.append(reward_batch[i])
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
-        y_batch = np.array(y_batch)
 
+        y_batch = np.array(y_batch)
         self.network.fit(X=state_batch, y=action_batch, eval_data=y_batch)
 
     def egreedy_action(self, state):
@@ -133,7 +139,7 @@ class DQN_agent():
 
 if __name__ == '__main__':
     env = gym.make('CartPole-v0')
-    agent = DQN_agent()
+    agent = DQN_agent(env)
     for episode in range(MAX_EPISODES):
         state = env.reset()
         for t in range(STEPS_PER_EPISODE):
