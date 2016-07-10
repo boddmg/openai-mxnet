@@ -29,16 +29,16 @@ class DQN_agent():
 
     def generate_Q_network(self):
         data = mx.symbol.Variable('data')
-        label = mx.symbol.Variable('output')
+        label = mx.symbol.Variable('label')
 
         fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
-        fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=1)
+        fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=2)
 
-        network = mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="regression")
+        network = mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="output")
 
         if is_macosx():
-            devs = [mx.cpu()]
+            devs = [mx.cpu(0)]
         else:
             devs = [mx.gpu(0)]
         model = mx.model.FeedForward(
@@ -46,6 +46,8 @@ class DQN_agent():
             ctx=devs,
             optimizer=mx.optimizer.Adam(0.0001),
             initializer=mx.init.Xavier(factor_type="in", magnitude=2.34),
+            begin_epoch=0,
+            num_epoch=3
         )
         return model
 
@@ -57,13 +59,19 @@ class DQN_agent():
         reward_batch = [data[2] for data in minibatch]
         next_state_batch = [data[3] for data in minibatch]
 
-        get_new_iter = lambda _: ConcurrentIter(len(_), BATCH_SIZE, getGenerator(_))
-        get_new_batch = lambda _: ConcurrentIter(len(_), BATCH_SIZE, getGenerator(_))
+        get_new_iter = lambda data,label: MxIter(len(data), BATCH_SIZE, data, label)
 
-        state_batch = get_new_iter(state_batch)
-        action_batch = get_new_iter(action_batch)
-        reward_batch = get_new_iter(reward_batch)
-        next_state_batch = get_new_iter(next_state_batch)
+        state_action_batch = get_new_iter(state_batch, action_batch)
+
+        print(state_batch)
+        print(action_batch)
+
+        state_batch = get_new_iter(state_batch, None)
+        action_batch = get_new_iter(action_batch, None)
+        reward_batch = get_new_iter(reward_batch, None)
+        next_state_batch = get_new_iter(next_state_batch, None)
+
+        self.network.fit(X=state_action_batch, eval_metric='RMSE')
 
         Q_value_batch = self.network.predict(next_state_batch)
 
@@ -132,7 +140,8 @@ def main():
                 break
 
 if __name__ == '__main__':
-    data = [[1,2,3,4],[1,2,3,4]]
+    main()
+
 
 
 
