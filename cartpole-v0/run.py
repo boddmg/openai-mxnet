@@ -6,51 +6,7 @@ import os
 import mxnet as mx
 import numpy as np
 import random
-import platform
-
-def is_macosx():
-    return platform.system() == "Darwin"
-
-class Batch(object):
-    def __init__(self, data_names, data, label_names, label):
-        self.data = data
-        self.label = label
-        self.data_names = data_names
-        self.label_names = label_names
-
-    @property
-    def provide_data(self):
-        return [(n, x.shape) for n, x in zip(self.data_names, self.data)]
-
-    @property
-    def provide_label(self):
-        return [(n, x.shape) for n, x in zip(self.label_names, self.label)]
-
-class ConcurrentIter(mx.io.DataIter):
-    def  __init__(self, count, batch_size, generator):
-        super(ConcurrentIter, self).__init__()
-        self.data_source = generator
-        self.batch_size = batch_size
-        self.count = count
-
-    def __iter__(self):
-        for i in range(self.count/self.batch_size):
-            data = []
-            label = []
-            for j in range(self.batch_size):
-                new_data, new_label = self.generator.next()
-                data.append(new_data)
-                label.append(new_label)
-
-            data_all = [mx.nd.array(data)]
-            label_all = [mx.nd.array(label)]
-            data_names = ['data']
-            label_names = ['softmax_label']
-            data_batch =Batch(data_names, data_all, label_names, label_all)
-            yield data_batch
-
-    def reset(self):
-        pass
+from utilities import *
 
 import gym
 
@@ -73,7 +29,7 @@ class DQN_agent():
 
     def generate_Q_network(self):
         data = mx.symbol.Variable('data')
-        label = mx.symbol.Variable('softmax_output')
+        label = mx.symbol.Variable('output')
 
         fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
@@ -96,24 +52,32 @@ class DQN_agent():
     def train_Q_network(self):
         minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
 
-        state_batch = np.asarray([data[0] for data in minibatch])
-        action_batch = np.asarray([data[1] for data in minibatch])
+        state_batch = [data[0] for data in minibatch]
+        action_batch = [data[1] for data in minibatch]
         reward_batch = [data[2] for data in minibatch]
-        next_state_batch = np.asarray([data[3] for data in minibatch])
+        next_state_batch = [data[3] for data in minibatch]
 
-        y_batch = []
+        get_new_iter = lambda _: ConcurrentIter(len(_), BATCH_SIZE, getGenerator(_))
+        get_new_batch = lambda _: ConcurrentIter(len(_), BATCH_SIZE, getGenerator(_))
 
-        print("state batch:")
-        print(state_batch)
+        state_batch = get_new_iter(state_batch)
+        action_batch = get_new_iter(action_batch)
+        reward_batch = get_new_iter(reward_batch)
+        next_state_batch = get_new_iter(next_state_batch)
 
         Q_value_batch = self.network.predict(next_state_batch)
+
+        y_batch = []
         for i in range(0, BATCH_SIZE):
             if minibatch[i][4]:
                 y_batch.append(reward_batch[i])
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
 
-        y_batch = np.array(y_batch)
+        print(self.network.symbol.list_arguments())
+
+        y_batch = np.asarray(y_batch)
+        print(action_batch.ndim)
         self.network.fit(X=state_batch, y=action_batch, eval_data=y_batch)
 
     def egreedy_action(self, state):
@@ -137,7 +101,7 @@ class DQN_agent():
     def react(self, state):
         return 0
 
-if __name__ == '__main__':
+def main():
     env = gym.make('CartPole-v0')
     agent = DQN_agent(env)
     for episode in range(MAX_EPISODES):
@@ -166,4 +130,11 @@ if __name__ == '__main__':
             print 'episode: ', episode, 'Evaluation Average Reward:', ave_reward
             if ave_reward >= 200:
                 break
+
+if __name__ == '__main__':
+    data = [[1,2,3,4],[1,2,3,4]]
+
+
+
+
 
