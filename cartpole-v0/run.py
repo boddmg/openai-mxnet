@@ -17,6 +17,23 @@ BATCH_SIZE = 32
 REPLAY_SIZE = 10000
 GAMMA = 0.9
 
+def get_new_iter(data,label, size = BATCH_SIZE):
+    return MxIter(len(data), size, data, label)
+
+def RMSE(label, pred):
+    print(label)
+    print(pred)
+    ret = 0.0
+    n = 0.0
+    if pred.shape[1] == 8:
+        return None
+    for k in range(pred.shape[0]):
+        v1 = label[k]
+        v2 = pred[k][0]
+        ret += abs(v1 - v2) / v1
+        n += 1.0
+    return ret / n
+
 class DQN_agent():
     def __init__(self, env):
         self.epsilon = INITIAL_EPSILON
@@ -26,6 +43,7 @@ class DQN_agent():
         self.network = self.generate_Q_network()
         self.replay_buffer = deque()
         pass
+
 
     def generate_Q_network(self):
         data = mx.symbol.Variable('data')
@@ -49,6 +67,9 @@ class DQN_agent():
             begin_epoch=0,
             num_epoch=3
         )
+        state_action_batch = get_new_iter([[0.,0.,0.,0.]], [[1., 0.]])
+
+        model.fit(X=state_action_batch, eval_metric='RMSE')
         return model
 
     def train_Q_network(self):
@@ -59,19 +80,7 @@ class DQN_agent():
         reward_batch = [data[2] for data in minibatch]
         next_state_batch = [data[3] for data in minibatch]
 
-        get_new_iter = lambda data,label: MxIter(len(data), BATCH_SIZE, data, label)
-
-        state_action_batch = get_new_iter(state_batch, action_batch)
-
-        print(state_batch)
-        print(action_batch)
-
-        state_batch = get_new_iter(state_batch, None)
-        action_batch = get_new_iter(action_batch, None)
-        reward_batch = get_new_iter(reward_batch, None)
         next_state_batch = get_new_iter(next_state_batch, None)
-
-        self.network.fit(X=state_action_batch, eval_metric='RMSE')
 
         Q_value_batch = self.network.predict(next_state_batch)
 
@@ -82,11 +91,10 @@ class DQN_agent():
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
 
-        print(self.network.symbol.list_arguments())
 
         y_batch = np.asarray(y_batch)
-        print(action_batch.ndim)
-        self.network.fit(X=state_batch, y=action_batch, eval_data=y_batch)
+        state_action_batch = get_new_iter(state_batch, action_batch)
+        self.network.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
 
     def egreedy_action(self, state):
         Q_value = self.network.predict(mx.nd.array(state))
@@ -107,7 +115,9 @@ class DQN_agent():
 
 
     def react(self, state):
-        return 0
+        state_batch = get_new_iter([state], None, 1)
+        result = self.network.predict(state_batch)[0]
+        return np.argmax(result)
 
 def main():
     env = gym.make('CartPole-v0')
