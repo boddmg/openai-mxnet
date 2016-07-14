@@ -40,37 +40,41 @@ class DQN_agent():
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = env.action_space.n
 
-        self.network = self.generate_Q_network()
         self.replay_buffer = deque()
+        self.generate_Q_network()
         pass
 
 
     def generate_Q_network(self):
         data = mx.symbol.Variable('data')
+        action = mx.symbol.Variable('action')
         label = mx.symbol.Variable('label')
 
         fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
         fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=2)
 
-        network = mx.symbol.LinearRegressionOutput(data=fc2, label=label, name="output")
+        Q_value = mx.symbol.LinearRegressionOutput(data=fc2, name="Q-value")
+
+        Q_action = mx.symbol.LinearRegressionOutput(data = mx.sym.sum(action * Q_value), label=label, name = 'Q-action')
 
         if is_macosx():
             devs = [mx.cpu(0)]
         else:
             devs = [mx.gpu(0)]
-        model = mx.model.FeedForward(
-            symbol=network,
-            ctx=devs,
-            optimizer=mx.optimizer.Adam(0.0001),
-            initializer=mx.init.Xavier(factor_type="in", magnitude=2.34),
-            begin_epoch=0,
-            num_epoch=3
-        )
-        state_action_batch = get_new_iter([[0.,0.,0.,0.]], [[1., 0.]])
 
-        model.fit(X=state_action_batch, eval_metric='RMSE')
-        return model
+        self.Q_action_model = mx.mod.Module(
+            Q_action,
+            data_names=('data'),
+            label_names=('label'),
+            context=devs)
+
+        self.Q_action_model.bind(
+            [('data', (BATCH_SIZE, self.state_dim))],
+            [('label', (BATCH_SIZE, 4))])
+        self.Q_action_model.init_params(mx.init.Xavier(factor_type="in", magnitude=2.34))
+        self.Q_action_model.init_optimizer(mx.optimizer.Adam(0,0001))
+        print('Q network generated.')
 
     def train_Q_network(self):
         minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
@@ -82,7 +86,10 @@ class DQN_agent():
 
         next_state_batch = get_new_iter(next_state_batch, None)
 
-        Q_value_batch = self.network.predict(next_state_batch)
+        self.Q_action_model.forward()
+
+
+        Q_value_batch = self.Q_action_model.predict(next_state_batch)
 
         y_batch = []
         for i in range(0, BATCH_SIZE):
@@ -94,7 +101,7 @@ class DQN_agent():
 
         y_batch = np.asarray(y_batch)
         state_action_batch = get_new_iter(state_batch, action_batch)
-        self.network.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
+        self.Q_action_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
 
     def egreedy_action(self, state):
         Q_value = self.network.predict(mx.nd.array(state))
@@ -116,7 +123,7 @@ class DQN_agent():
 
     def react(self, state):
         state_batch = get_new_iter([state], None, 1)
-        result = self.network.predict(state_batch)[0]
+        result = self.Q_action_model.predict(state_batch)[0]
         return np.argmax(result)
 
 def main():
