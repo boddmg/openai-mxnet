@@ -56,22 +56,31 @@ class DQN_agent():
 
         Q_value = mx.symbol.LinearRegressionOutput(data=fc2, name="Q-value")
 
-        Q_action = mx.symbol.LinearRegressionOutput(data = mx.sym.sum(action * Q_value), label=label, name = 'Q-action')
+        temp = action * Q_value
+        assert isinstance(temp, mx.symbol.Symbol)
+        temp = mx.symbol.sum(temp, axis=1)
+        Q_action = mx.symbol.LinearRegressionOutput(data = temp, label=label, name = 'Q-action')
 
         if is_macosx():
             devs = [mx.cpu(0)]
         else:
             devs = [mx.gpu(0)]
 
+        assert isinstance(Q_action, mx.symbol.Symbol)
+        state_shape = (BATCH_SIZE, self.state_dim)
+        action_shape = (BATCH_SIZE, self.action_dim)
+
         self.Q_action_model = mx.mod.Module(
             Q_action,
-            data_names=('data'),
+            data_names=('data', 'action'),
             label_names=('label'),
             context=devs)
 
         self.Q_action_model.bind(
-            [('data', (BATCH_SIZE, self.state_dim))],
-            [('label', (BATCH_SIZE, 4))])
+            [('data', state_shape),
+             ('action', action_shape)],
+            [('label', (BATCH_SIZE, 1))])
+
         self.Q_action_model.init_params(mx.init.Xavier(factor_type="in", magnitude=2.34))
         self.Q_action_model.init_optimizer(mx.optimizer.Adam(0,0001))
         print('Q network generated.')
@@ -87,7 +96,6 @@ class DQN_agent():
         next_state_batch = get_new_iter(next_state_batch, None)
 
         self.Q_action_model.forward()
-
 
         Q_value_batch = self.Q_action_model.predict(next_state_batch)
 
