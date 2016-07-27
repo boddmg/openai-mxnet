@@ -7,6 +7,8 @@ import mxnet as mx
 import numpy as np
 import random
 from utilities import *
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 import gym
 
@@ -48,18 +50,15 @@ class DQN_agent():
     def generate_Q_network(self):
         data = mx.symbol.Variable('data')
         action = mx.symbol.Variable('action')
-        label = mx.symbol.Variable('label')
+        Q_action_label = mx.symbol.Variable('Q_action_label')
 
         fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
-        fc2 = mx.symbol.FullyConnected(data=relu1, num_hidden=2)
-
-        Q_value = mx.symbol.LinearRegressionOutput(data=fc2, name="Q-value")
+        Q_value = mx.symbol.FullyConnected(data=relu1, num_hidden=2, name="Q_value")
 
         temp = action * Q_value
-        assert isinstance(temp, mx.symbol.Symbol)
         temp = mx.symbol.sum(temp, axis=1)
-        Q_action = mx.symbol.LinearRegressionOutput(data = temp, label=label, name = 'Q-action')
+        Q_action = mx.symbol.LinearRegressionOutput(data = temp, label=Q_action_label, name = 'Q-action')
 
         if is_macosx():
             devs = [mx.cpu(0)]
@@ -73,16 +72,19 @@ class DQN_agent():
         self.Q_action_model = mx.mod.Module(
             Q_action,
             data_names=('data', 'action'),
-            label_names=('label'),
+            label_names=('Q_action_label',),
             context=devs)
 
         self.Q_action_model.bind(
             [('data', state_shape),
              ('action', action_shape)],
-            [('label', (BATCH_SIZE, 1))])
+            [('Q_action_label', (BATCH_SIZE, 1))]
+        )
 
-        self.Q_action_model.init_params(mx.init.Xavier(factor_type="in", magnitude=2.34))
-        self.Q_action_model.init_optimizer(mx.optimizer.Adam(0,0001))
+        print(self.Q_action_model._param_names)
+
+        self.Q_action_model.init_params(initializer=mx.init.Xavier(factor_type="in", magnitude=2.34))
+        self.Q_action_model.init_optimizer(optimizer = mx.optimizer.Adam(0,0001))
         print('Q network generated.')
 
     def train_Q_network(self):
