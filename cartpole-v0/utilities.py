@@ -12,7 +12,7 @@ def is_macosx():
     return platform.system() == "Darwin"
 
 class Batch(object):
-    def __init__(self, data_names, data, label_names, label):
+    def __init__(self, data_names, data, label_names = None, label = None):
         self.data = data
         self.label = label
         self.data_names = data_names

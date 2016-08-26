@@ -48,11 +48,11 @@ class DQN_agent():
 
 
     def generate_Q_network(self):
-        data = mx.symbol.Variable('data')
+        state = mx.symbol.Variable('state')
         action = mx.symbol.Variable('action')
         Q_action_label = mx.symbol.Variable('Q_action_label')
 
-        fc1 = mx.symbol.FullyConnected(data=data, num_hidden=20)
+        fc1 = mx.symbol.FullyConnected(data=state, num_hidden=20)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
         Q_value = mx.symbol.FullyConnected(data=relu1, num_hidden=2, name="Q_value")
 
@@ -71,12 +71,12 @@ class DQN_agent():
 
         self.Q_action_model = mx.mod.Module(
             Q_action,
-            data_names=('data', 'action'),
+            data_names=('state', 'action'),
             label_names=('Q_action_label',),
             context=devs)
 
         self.Q_action_model.bind(
-            [('data', state_shape),
+            [('state', state_shape),
              ('action', action_shape)],
             [('Q_action_label', (BATCH_SIZE, 1))]
         )
@@ -130,9 +130,9 @@ class DQN_agent():
         if len(self.replay_buffer) > BATCH_SIZE:
             self.train_Q_network()
 
-
     def react(self, state):
-        state_batch = get_new_iter([state], None, 1)
+        state_batch = Batch(["state"], [mx.nd.array(state)])
+        state_batch.pad = BATCH_SIZE - 1
         result = self.Q_action_model.predict(state_batch)[0]
         return np.argmax(result)
 
