@@ -108,7 +108,6 @@ class DQN_agent():
             else:
                 y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
 
-
         y_batch = np.asarray(y_batch)
         state_action_batch = get_new_iter(state_batch, action_batch)
         self.Q_action_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
@@ -131,10 +130,17 @@ class DQN_agent():
             self.train_Q_network()
 
     def react(self, state):
+        """
+        :type state: np.ndarray
+        """
+        zeros = np.zeros((BATCH_SIZE, self.state_dim), dtype=np.float)
+        zeros[0] = state
+        state = zeros
         state_batch = Batch(["state"], [mx.nd.array(state)])
         state_batch.pad = BATCH_SIZE - 1
-        result = self.Q_action_model.predict(state_batch)[0]
-        return np.argmax(result)
+        self.Q_action_model.forward(state_batch, is_train=False)
+        outputs = self.Q_action_model.get_outputs()
+        return np.argmax(outputs)
 
 def main():
     env = gym.make('CartPole-v0')

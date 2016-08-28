@@ -71,9 +71,13 @@ class MxIter(mx.io.DataIter):
                 data_batch =Batch(data_names, data_all, None, None)
                 yield data_batch
 
-
     def reset(self):
         pass
+
+class PredictIter(mx.io.DataIter):
+
+    pass
+
 
 if __name__ == '__main__':
     data = [[[1,2],[3,4]], [[1,2],[3,4]]]
