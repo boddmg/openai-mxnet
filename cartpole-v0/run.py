@@ -58,33 +58,34 @@ class DQN_agent():
 
         temp = action * Q_value
         temp = mx.symbol.sum(temp, axis=1)
-        Q_action = mx.symbol.LinearRegressionOutput(data = temp, label=Q_action_label, name = 'Q-action')
+        Q_action = mx.symbol.LinearRegressionOutput(data = temp, label=Q_action_label, name = 'Q_action')
+        Q_network = mx.symbol.Group([Q_action, Q_value])
 
         if is_macosx():
             devs = [mx.cpu(0)]
         else:
             devs = [mx.gpu(0)]
 
-        assert isinstance(Q_action, mx.symbol.Symbol)
+        assert isinstance(Q_network, mx.symbol.Symbol)
         state_shape = (BATCH_SIZE, self.state_dim)
         action_shape = (BATCH_SIZE, self.action_dim)
 
-        self.Q_action_model = mx.mod.Module(
-            Q_action,
+        self.Q_network_model = mx.mod.Module(
+            Q_network,
             data_names=('state', 'action'),
             label_names=('Q_action_label',),
             context=devs)
 
-        self.Q_action_model.bind(
+        self.Q_network_model.bind(
             [('state', state_shape),
              ('action', action_shape)],
             [('Q_action_label', (BATCH_SIZE, 1))]
         )
 
-        print(self.Q_action_model._param_names)
+        print(self.Q_network_model._param_names)
 
-        self.Q_action_model.init_params(initializer=mx.init.Xavier(factor_type="in", magnitude=2.34))
-        self.Q_action_model.init_optimizer(optimizer = mx.optimizer.Adam(0,0001))
+        self.Q_network_model.init_params(initializer=mx.init.Xavier(factor_type="in", magnitude=2.34))
+        self.Q_network_model.init_optimizer(optimizer = mx.optimizer.Adam(0,0001))
         print('Q network generated.')
 
     def train_Q_network(self):
@@ -97,7 +98,7 @@ class DQN_agent():
 
         next_state_batch = get_new_iter(next_state_batch, None)
 
-        self.Q_action_model.forward()
+        self.Q_action_model.forward(next_state_batch)
 
         Q_value_batch = self.Q_action_model.predict(next_state_batch)
 
@@ -138,9 +139,14 @@ class DQN_agent():
         state = zeros
         state_batch = Batch(["state"], [mx.nd.array(state)])
         state_batch.pad = BATCH_SIZE - 1
-        self.Q_action_model.forward(state_batch, is_train=False)
-        outputs = self.Q_action_model.get_outputs()
-        return np.argmax(outputs)
+        self.Q_network_model.forward(state_batch, is_train=False)
+        outputs = self.Q_network_model.get_outputs()[1][0]
+        """
+        :type outputs: mx.nd.NDArray
+        """
+        outputs = outputs.asnumpy()
+        output = outputs.argmax()
+        return output
 
 def main():
     env = gym.make('CartPole-v0')
