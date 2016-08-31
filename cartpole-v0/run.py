@@ -19,22 +19,6 @@ BATCH_SIZE = 32
 REPLAY_SIZE = 10000
 GAMMA = 0.9
 
-def get_new_iter(data,label, size = BATCH_SIZE):
-    return MxIter(len(data), size, data, label)
-
-def RMSE(label, pred):
-    print(label)
-    print(pred)
-    ret = 0.0
-    n = 0.0
-    if pred.shape[1] == 8:
-        return None
-    for k in range(pred.shape[0]):
-        v1 = label[k]
-        v2 = pred[k][0]
-        ret += abs(v1 - v2) / v1
-        n += 1.0
-    return ret / n
 
 class DQN_agent():
     def __init__(self, env):
@@ -45,7 +29,6 @@ class DQN_agent():
         self.replay_buffer = deque()
         self.generate_Q_network()
         pass
-
 
     def generate_Q_network(self):
         state = mx.symbol.Variable('state')
@@ -96,22 +79,28 @@ class DQN_agent():
         reward_batch = [data[2] for data in minibatch]
         next_state_batch = [data[3] for data in minibatch]
 
-        next_state_batch = get_new_iter(next_state_batch, None)
+        next_state_batch_np = np.asarray(next_state_batch)
+        next_state_batch_mxbatch = Batch(["state"], [mx.nd.array(next_state_batch_np)])
+        self.Q_network_model.forward(next_state_batch_mxbatch, is_train=False)
 
-        self.Q_action_model.forward(next_state_batch)
-
-        Q_value_batch = self.Q_action_model.predict(next_state_batch)
+        print self.Q_network_model.output_names
+        Q_value_batch_mxarray = self.Q_network_model.get_outputs()[1]
+        """
+        :type Q_value_batch_mxarray: mx.ndarray.NDArray
+        """
 
         y_batch = []
         for i in range(0, BATCH_SIZE):
             if minibatch[i][4]:
                 y_batch.append(reward_batch[i])
             else:
-                y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch[i]))
+                y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch_mxarray[i].asnumpy()))
 
         y_batch = np.asarray(y_batch)
+        print y_batch
+        next_state_batch_iter = get_new_iter(next_state_batch, None)
         state_action_batch = get_new_iter(state_batch, action_batch)
-        self.Q_action_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
+        self.Q_network_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
 
     def egreedy_action(self, state):
         Q_value = self.network.predict(mx.nd.array(state))
@@ -157,7 +146,8 @@ def main():
             # env.render()
             action = agent.react(state)
             next_state, reward, done, info = env.step(action)
-            action = agent.learn(state, action, reward, next_state, done)
+            reward_for_agent = -1 if done else 0.1
+            agent.learn(state, action, reward, next_state, done)
             state = next_state
             if done:
                 print("Episode finished after {} timesteps".format(t+1))
