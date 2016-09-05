@@ -83,7 +83,6 @@ class DQN_agent():
         next_state_batch_mxbatch = Batch(["state"], [mx.nd.array(next_state_batch_np)])
         self.Q_network_model.forward(next_state_batch_mxbatch, is_train=False)
 
-        print self.Q_network_model.output_names
         Q_value_batch_mxarray = self.Q_network_model.get_outputs()[1]
         """
         :type Q_value_batch_mxarray: mx.ndarray.NDArray
@@ -92,14 +91,24 @@ class DQN_agent():
         y_batch = []
         for i in range(0, BATCH_SIZE):
             if minibatch[i][4]:
-                y_batch.append(reward_batch[i])
+                y_batch.append([reward_batch[i]])
             else:
-                y_batch.append(reward_batch[i] + GAMMA * np.max(Q_value_batch_mxarray[i].asnumpy()))
+                y_batch.append([reward_batch[i] + GAMMA * np.max(Q_value_batch_mxarray[i].asnumpy())])
 
         y_batch = np.asarray(y_batch)
-        print y_batch
-        state_action_batch = MxIter(state_batch, action_batch)
-        self.Q_network_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
+        state_action_qaction_iter = MxIter(
+            [
+                ['state', np.asarray(state_batch)],
+                ['action', np.asarray(action_batch)]
+            ],
+            [
+                ['Q_action_label', np.asarray(y_batch)]
+            ], BATCH_SIZE, BATCH_SIZE
+        )
+        self.Q_network_model.fit(
+            state_action_qaction_iter,
+            eval_metric='RMSE',
+            num_epoch=3)
 
     def egreedy_action(self, state):
         Q_value = self.network.predict(mx.nd.array(state))

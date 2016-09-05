@@ -1,4 +1,5 @@
 import mxnet as mx
+import numpy as np
 import platform
 
 def getGenerator(data_source):
@@ -43,46 +44,52 @@ def RMSE(label, pred):
 
 class MxIter(mx.io.DataIter):
     """
-    data's format: {name = np.ndarray}
-    label's format: {name = np.ndarray}
+    data's format: [[name, np.ndarray]]
+    label's format: [[name, np.ndarray]]
     data shape of the provide_data(label):(data_size, data_point_size)
     """
     def  __init__(self, data, label, count, batch_size):
         super(MxIter, self).__init__()
-        assert isinstance(data, dict)
-        assert isinstance(label, dict)
+        assert isinstance(data, list)
+        assert isinstance(label, list)
+        for key,value in data:
+            assert isinstance(value, np.ndarray)
+        for key,value in label:
+            assert isinstance(value, np.ndarray)
+
         self.data = data
         self.label = label
         self.batch_size = batch_size
         self.count = count
 
         self.provide_data = []
-        for i in self.data:
-            self.provide_data += [(i, (batch_size, self.data[i].shape[1]))]
+        for key, value in self.data:
+            self.provide_data += [(key, (batch_size, value.shape[1]))]
 
         if label:
             self.provide_label = []
-            for i in self.label:
-                self.provide_label += [(i, (batch_size, self.label[i].shape[1]))]
+            for key,value in self.label:
+                self.provide_label += [(key, (batch_size, value.shape[1]))]
 
-    def get_
+    def get_new_batch(self, new_list, batch_index):
+        list_data_names = []
+        list_data_all = []
+        for key,value in list_data_names:
+            list_data_names += [key]
+            new_data_array= []
+            for j in range(self.batch_size):
+                new_data = value[batch_index*self.batch_size + j]
+                new_data_array.append(new_data)
+            list_data_all += [mx.nd.array(new_data_array)]
+        print list_data_names
+        return list_data_names, list_data_all
+
 
     def __iter__(self):
         for i in range(self.count/self.batch_size):
-            data = []
-            for j in range(self.batch_size):
-                new_data = self.data[i*self.batch_size + j]
-                data.append(new_data)
-            data_all = [mx.nd.array(data), ]
-            data_names = []
-
+            data_names, data_all = self.get_new_batch(self.data, i)
             if self.label:
-                label = []
-                for j in range(self.batch_size):
-                    new_label = self.label[i*self.batch_size + j]
-                    label.append(new_label)
-                label_all = [mx.nd.array(label)]
-                label_names = ['label']
+                label_names, label_all = self.get_new_batch(self.label, i)
                 data_batch =Batch(data_names, data_all, label_names, label_all)
                 yield data_batch
             else:
@@ -96,10 +103,3 @@ class PredictIter(mx.io.DataIter):
 
     pass
 
-
-if __name__ == '__main__':
-    data = [[[1,2],[3,4]], [[1,2],[3,4]]]
-    iter = MxIter(len(data), 1, data)
-    for i in iter:
-        print(i.provide_data)
-    pass
