@@ -98,8 +98,7 @@ class DQN_agent():
 
         y_batch = np.asarray(y_batch)
         print y_batch
-        next_state_batch_iter = get_new_iter(next_state_batch, None)
-        state_action_batch = get_new_iter(state_batch, action_batch)
+        state_action_batch = MxIter(state_batch, action_batch)
         self.Q_network_model.fit(X=state_action_batch, y=y_batch, eval_metric='RMSE')
 
     def egreedy_action(self, state):

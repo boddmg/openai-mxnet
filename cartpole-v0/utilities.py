@@ -27,9 +27,6 @@ class Batch(object):
     def provide_label(self):
         return [(n, x.shape) for n, x in zip(self.label_names, self.label)]
 
-def get_new_iter(data,label, size = BATCH_SIZE):
-    return MxIter(len(data), size, data, label)
-
 def RMSE(label, pred):
     print(label)
     print(pred)
@@ -46,9 +43,9 @@ def RMSE(label, pred):
 
 class MxIter(mx.io.DataIter):
     """
-    data:{name:np.ndarray}
-    label:{name:np.ndarray}
-    data shape:(data_size, data_point_size)
+    data's format: {name = np.ndarray}
+    label's format: {name = np.ndarray}
+    data shape of the provide_data(label):(data_size, data_point_size)
     """
     def  __init__(self, data, label, count, batch_size):
         super(MxIter, self).__init__()
@@ -68,14 +65,16 @@ class MxIter(mx.io.DataIter):
             for i in self.label:
                 self.provide_label += [(i, (batch_size, self.label[i].shape[1]))]
 
+    def get_
+
     def __iter__(self):
         for i in range(self.count/self.batch_size):
             data = []
             for j in range(self.batch_size):
                 new_data = self.data[i*self.batch_size + j]
                 data.append(new_data)
-            data_all = [mx.nd.array(data)]
-            data_names = ['data']
+            data_all = [mx.nd.array(data), ]
+            data_names = []
 
             if self.label:
                 label = []
