@@ -51,10 +51,11 @@ class MxIter(mx.io.DataIter):
     def  __init__(self, data, label, count, batch_size):
         super(MxIter, self).__init__()
         assert isinstance(data, list)
-        assert isinstance(label, list)
+        if label:
+            assert isinstance(label, list)
+            for key,value in label:
+                assert isinstance(value, np.ndarray)
         for key,value in data:
-            assert isinstance(value, np.ndarray)
-        for key,value in label:
             assert isinstance(value, np.ndarray)
 
         self.data = data
@@ -74,14 +75,13 @@ class MxIter(mx.io.DataIter):
     def get_new_batch(self, new_list, batch_index):
         list_data_names = []
         list_data_all = []
-        for key,value in list_data_names:
+        for key,value in new_list:
             list_data_names += [key]
             new_data_array= []
             for j in range(self.batch_size):
                 new_data = value[batch_index*self.batch_size + j]
                 new_data_array.append(new_data)
             list_data_all += [mx.nd.array(new_data_array)]
-        print list_data_names
         return list_data_names, list_data_all
 
 
@@ -90,10 +90,10 @@ class MxIter(mx.io.DataIter):
             data_names, data_all = self.get_new_batch(self.data, i)
             if self.label:
                 label_names, label_all = self.get_new_batch(self.label, i)
-                data_batch =Batch(data_names, data_all, label_names, label_all)
+                data_batch = Batch(data_names, data_all, label_names, label_all)
                 yield data_batch
             else:
-                data_batch =Batch(data_names, data_all, None, None)
+                data_batch = Batch(data_names, data_all, None, None)
                 yield data_batch
 
     def reset(self):
