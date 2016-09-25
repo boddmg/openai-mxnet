@@ -35,7 +35,7 @@ class DQN_agent():
         action = mx.symbol.Variable('action')
         Q_action_label = mx.symbol.Variable('Q_action_label')
 
-        fc1 = mx.symbol.FullyConnected(data=state, num_hidden=32)
+        fc1 = mx.symbol.FullyConnected(data=state, num_hidden=64)
         relu1 = mx.symbol.Activation(data=fc1, act_type="relu")
 
         Q_value = mx.symbol.FullyConnected(data=relu1, num_hidden=self.action_dim, name="Q_value")
@@ -158,12 +158,19 @@ class DQN_agent():
         return output
 
 MAX_EPISODES = 1000
-TEST_EPISODES = 10
-STEPS_PER_EPISODE = 1000
-GAMMA = 0.9
+TEST_EPISODES = 5
+STEPS_PER_EPISODE = 500
+GAMMA = 0.5
 RECORD_INTERVAL = 100
-SAVE_PARAMS_INTERVAL = 20
+SAVE_PARAMS_INTERVAL = 10
 PARAMS_FILE_NAME = "current_params.params"
+
+def get_accumulator():
+    s = [0]
+    def _(i):
+        s[0] = s[0] + i
+        return s[0]
+    return _
 
 def main():
     env = gym.make('LunarLander-v2')
@@ -173,6 +180,7 @@ def main():
         agent.Q_network_model.load_params(PARAMS_FILE_NAME)
     for episode in range(MAX_EPISODES):
         state = env.reset()
+        acc = get_accumulator()
         for t in range(STEPS_PER_EPISODE):
             tic = time.time()
             env.render()
@@ -181,6 +189,7 @@ def main():
             action = agent.egreedy_action(state)
             # print "react time:" + str(time.time() - tic)
             next_state, reward, done, info = env.step(action)
+            acc(reward)
 
             tic = time.time()
             agent.learn(state, action, reward, next_state, done)
@@ -192,19 +201,20 @@ def main():
                 break
             if SAVE_PARAMS_INTERVAL:
                 agent.Q_network_model.save_params(PARAMS_FILE_NAME)
+        print acc(0)/t
     # Test every 100 episodes
         if episode % 100 == 0:
-            total_reward = 0
+            total_reward = get_accumulator()
             for i in range(TEST_EPISODES):
                 state = env.reset()
                 for j in xrange(STEPS_PER_EPISODE):
                     env.render()
                     action = agent.react(state)  # direct action for test
                     state, reward, done, _ = env.step(action)
-                    total_reward += reward
+                    total_reward(reward)
                     if done:
                         break
-            ave_reward = total_reward / TEST_EPISODES
+            ave_reward = total_reward(0) / TEST_EPISODES
             log_string = 'episode: {}, Evaluation Average Reward:{}'.format(episode, ave_reward)
             logging.debug(log_string)
             print  log_string
