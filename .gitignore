@@ -88,3 +88,12 @@ ENV/
 # Rope project settings
 .ropeproject
 .idea
+/Acrobot-v1/Acrobot-ex/*.json
+/Acrobot-v1/LunarLander-v2/*.json
+/cartpole-v0-PolicyNetwork/cartpole-ex/*.json
+/cartpole-v1/cartpole-ex/*.json
+/LunarLander-v2/LunarLander-v2/*.json
+/Acrobot-v1/Acrobot-ex/*.mp4
+/cartpole-v0-PolicyNetwork/cartpole-ex/*.mp4
+/cartpole-v1/cartpole-ex/*.mp4
+/LunarLander-v2/LunarLander-v2/*.mp4
